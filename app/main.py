@@ -1,14 +1,26 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from sqlalchemy.exc import SQLAlchemyError
 
-app = FastAPI(title="SMB POS API")
+from app.database.connection import test_connection
 
+app = FastAPI()
+
+
+@app.get("/test-database")
+def test_database():
+    try:
+        result = test_connection()
+    except SQLAlchemyError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Database connection failed: {exc.__class__.__name__}",
+        ) from exc
+
+    return {
+        "database": "connected",
+        "result": result
+    }
 
 @app.get("/")
-def read_root() -> dict[str, str]:
-    return {"message": "SMB POS API is running"}
-
-
-@app.get("/health")
-def health_check() -> dict[str, str]:
-    return {"status": "ok"}
-
+def home():
+    return {"message": "API is running"}

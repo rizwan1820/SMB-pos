@@ -3,13 +3,16 @@ import os
 from pathlib import Path
 
 from dotenv import load_dotenv
-from sqlalchemy import create_engine
-from sqlalchemy import pool
 from sqlalchemy.engine.url import make_url
 
 from alembic import context
 from app.database.base import Base
+from app.database.connection import engine
 from app.models.business import Business
+from app.models.permission import Permission
+from app.models.profile import Profile
+from app.models.role import Role
+from app.models.role_permission import RolePermission
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -70,13 +73,7 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    connectable = create_engine(
-        database_url,
-        connect_args={"sslmode": "require"},
-        poolclass=pool.NullPool,
-    )
-
-    with connectable.connect() as connection:
+    with engine.connect() as connection:
         context.configure(
             connection=connection, target_metadata=target_metadata
         )

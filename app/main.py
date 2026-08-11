@@ -1,11 +1,13 @@
 from fastapi import FastAPI, HTTPException
 from sqlalchemy.exc import SQLAlchemyError
-
+from app.routes import businesses, roles, users
 from app.database.connection import test_connection
 
 app = FastAPI()
 
-
+app.include_router(businesses.router)
+app.include_router(roles.router)
+app.include_router(users.router)
 @app.get("/test-database")
 def test_database():
     try:

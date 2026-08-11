@@ -4,7 +4,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine.url import make_url
-
+from sqlalchemy.orm import sessionmaker
 
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
@@ -29,3 +29,8 @@ def test_connection() -> int:
     with engine.connect() as connection:
         result = connection.execute(text("SELECT 1"))
         return result.scalar()
+SessionLocal = sessionmaker(
+    bind=engine,
+    autoflush=False,
+    autocommit=False
+)

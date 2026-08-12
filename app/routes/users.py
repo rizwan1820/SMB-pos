@@ -1,11 +1,9 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
-from app.schemas.user import UserCreate
-from app.services import user_service
-from app.schemas.user import UserLogin
-from fastapi import Depends
 from app.auth.dependencies import get_current_user
-from app.auth.permissions import require_permission
+from app.schemas.user import UserCreate
+from app.schemas.user import UserLogin
+from app.services import user_service
 
 router = APIRouter()
 
@@ -21,19 +19,3 @@ def login(user: UserLogin):
 @router.get("/me")
 def get_me(current_user = Depends(get_current_user)):
     return current_user
-
-@router.get("/test-order-permission")
-def test_order_permission(
-    current_user=Depends(require_permission("order.create"))
-):
-    return {
-        "message": "You can create orders"
-    }
-
-@router.get("/test-archive-permission")
-def test_archive_permission(
-    current_user=Depends(require_permission("product.archive"))
-):
-    return {
-        "message": "You can archive products"
-    }

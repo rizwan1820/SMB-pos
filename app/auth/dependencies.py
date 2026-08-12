@@ -6,12 +6,18 @@ from app.database.connection import SessionLocal
 from app.models.profile import Profile
 
 
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security)
 ):
+    if credentials is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Missing authentication token"
+        )
+
     token = credentials.credentials
 
     try:

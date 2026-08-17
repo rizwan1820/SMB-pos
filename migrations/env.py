@@ -8,11 +8,7 @@ from sqlalchemy.engine.url import make_url
 from alembic import context
 from app.database.base import Base
 from app.database.connection import engine
-from app.models.business import Business
-from app.models.permission import Permission
-from app.models.profile import Profile
-from app.models.role import Role
-from app.models.role_permission import RolePermission
+import app.models  # noqa: F401
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

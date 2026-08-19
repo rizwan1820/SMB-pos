@@ -1,4 +1,4 @@
-from fastapi import Depends, HTTPException
+from fastapi import Cookie, Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.auth.supabase_auth import supabase
@@ -10,32 +10,33 @@ security = HTTPBearer(auto_error=False)
 
 
 def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security)
+    access_token: str | None = Cookie(default=None),
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
 ):
-    if credentials is None:
+    token = credentials.credentials if credentials else access_token
+
+    if not token:
         raise HTTPException(
             status_code=401,
             detail="Missing authentication token"
         )
 
-    token = credentials.credentials
-
     try:
         response = supabase.auth.get_user(token)
-
-        if not response.user:
-            raise HTTPException(
-                status_code=401,
-                detail="Invalid authentication token"
-            )
-
-        user_id = response.user.id
 
     except Exception:
         raise HTTPException(
             status_code=401,
-            detail="Invalid or expired token"
+            detail="Invalid or expired authentication"
         )
+
+    if not response.user:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid authentication"
+        )
+
+    user_id = response.user.id
 
     db = SessionLocal()
 

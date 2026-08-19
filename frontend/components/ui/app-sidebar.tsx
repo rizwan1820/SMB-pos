@@ -7,6 +7,8 @@ import {
   Boxes,
   Users,
   Truck,
+  ShoppingCart,
+  ReceiptText,
 } from "lucide-react"
 
 export function AppSidebar() {
@@ -34,6 +36,22 @@ export function AppSidebar() {
         >
           <Package size={18} />
           Products
+        </Link>
+
+        <Link
+          href="/pos"
+          className="flex items-center gap-3 rounded-md px-3 py-2 hover:bg-muted"
+        >
+          <ShoppingCart size={18} />
+          POS
+        </Link>
+
+        <Link
+          href="/orders"
+          className="flex items-center gap-3 rounded-md px-3 py-2 hover:bg-muted"
+        >
+          <ReceiptText size={18} />
+          Orders
         </Link>
 
         <Link

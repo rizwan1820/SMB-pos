@@ -54,10 +54,7 @@ def login_user(user):
             "password": user.password
         })
 
-        return {
-            "access_token": response.session.access_token,
-            "token_type": "bearer"
-        }
+        return response.session
 
     except Exception:
         raise HTTPException(

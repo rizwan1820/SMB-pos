@@ -5,8 +5,10 @@ from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 
 from app.database.connection import SessionLocal
+from app.models.business import Business
 from app.models.customer import Customer
 from app.models.inventory_movement import InventoryMovement
+from app.models.invoice import Invoice
 from app.models.order import Order
 from app.models.order_item import OrderItem
 from app.models.payment import Payment
@@ -22,7 +24,31 @@ def money(value: Decimal) -> Decimal:
     return value.quantize(MONEY, rounding=ROUND_HALF_UP)
 
 
-def order_response(order, order_items=None, payment=None):
+def generate_invoice_number(db, business_id):
+    db.query(Business).filter(
+        Business.id == business_id,
+    ).with_for_update().one()
+
+    latest_invoice_number = (
+        db.query(Invoice.invoice_number)
+        .filter(
+            Invoice.business_id == business_id,
+            Invoice.invoice_number.like("INV-%"),
+        )
+        .order_by(Invoice.invoice_number.desc())
+        .limit(1)
+        .scalar()
+    )
+
+    if latest_invoice_number:
+        next_sequence = int(latest_invoice_number.removeprefix("INV-")) + 1
+    else:
+        next_sequence = 1
+
+    return f"INV-{next_sequence:06d}"
+
+
+def order_response(order, order_items=None, payment=None, invoice=None):
     response = {
         "id": order.id,
         "customer_id": order.customer_id,
@@ -59,6 +85,13 @@ def order_response(order, order_items=None, payment=None):
             "created_at": payment.created_at,
         }
 
+    if invoice is not None:
+        response["invoice"] = {
+            "id": invoice.id,
+            "invoice_number": invoice.invoice_number,
+            "invoice_date": invoice.invoice_date,
+        }
+
     return response
 
 
@@ -73,7 +106,31 @@ def get_orders(current_user):
             .all()
         )
 
-        return [order_response(order) for order in orders]
+        order_ids = [order.id for order in orders]
+
+        invoices = (
+            db.query(Invoice)
+            .filter(
+                Invoice.business_id == current_user.business_id,
+                Invoice.order_id.in_(order_ids),
+            )
+            .all()
+            if order_ids
+            else []
+        )
+
+        invoice_by_order_id = {
+            invoice.order_id: invoice
+            for invoice in invoices
+        }
+
+        return [
+            order_response(
+                order,
+                invoice=invoice_by_order_id.get(order.id),
+            )
+            for order in orders
+        ]
 
     finally:
         db.close()
@@ -113,7 +170,16 @@ def get_order(order_id, current_user):
             .first()
         )
 
-        return order_response(order, order_items, payment)
+        invoice = (
+            db.query(Invoice)
+            .filter(
+                Invoice.order_id == order.id,
+                Invoice.business_id == current_user.business_id,
+            )
+            .first()
+        )
+
+        return order_response(order, order_items, payment, invoice)
 
     finally:
         db.close()
@@ -327,7 +393,21 @@ def checkout(checkout_data: CheckoutRequest, current_user):
         db.flush()
 
         # ---------------------------------------------------------
-        # 7. Create Order Items
+        # 7. Create Invoice
+        # ---------------------------------------------------------
+        invoice = Invoice(
+            business_id=current_user.business_id,
+            order_id=order.id,
+            invoice_number=generate_invoice_number(
+                db,
+                current_user.business_id,
+            ),
+        )
+
+        db.add(invoice)
+
+        # ---------------------------------------------------------
+        # 8. Create Order Items
         # ---------------------------------------------------------
         order_items = []
 
@@ -346,7 +426,7 @@ def checkout(checkout_data: CheckoutRequest, current_user):
             order_items.append(order_item)
 
         # ---------------------------------------------------------
-        # 8. Create Payment
+        # 9. Create Payment
         # ---------------------------------------------------------
         payment_method = checkout_data.payment_method
 
@@ -365,7 +445,7 @@ def checkout(checkout_data: CheckoutRequest, current_user):
         db.add(payment)
 
         # ---------------------------------------------------------
-        # 9. Create negative inventory SALE movements
+        # 10. Create negative inventory SALE movements
         # ---------------------------------------------------------
         for item in calculated_items:
             movement = InventoryMovement(
@@ -381,19 +461,22 @@ def checkout(checkout_data: CheckoutRequest, current_user):
             db.add(movement)
 
         # ---------------------------------------------------------
-        # 10. COMMIT EVERYTHING TOGETHER
+        # 11. COMMIT EVERYTHING TOGETHER
         # ---------------------------------------------------------
         db.commit()
 
         db.refresh(order)
+        db.refresh(invoice)
         db.refresh(payment)
 
         # ---------------------------------------------------------
-        # 11. Clean API response
+        # 12. Clean API response
         # ---------------------------------------------------------
         return {
             "message": "Checkout completed successfully",
             "order_id": order.id,
+            "invoice_id": invoice.id,
+            "invoice_number": invoice.invoice_number,
             "subtotal": order.subtotal,
             "discount_amount": order.discount_amount,
             "tax_amount": order.tax_amount,

@@ -8,6 +8,13 @@ export type OrderSummary = {
   status: string
   created_by: string
   created_at: string
+  invoice?: OrderInvoice
+}
+
+export type OrderInvoice = {
+  id: string
+  invoice_number: string
+  invoice_date: string
 }
 
 export type OrderItem = {

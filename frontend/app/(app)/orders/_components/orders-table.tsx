@@ -1,7 +1,9 @@
 "use client"
 
 import { Loader2 } from "lucide-react"
+import Link from "next/link"
 
+import { buttonVariants } from "@/components/ui/button"
 import {
   formatDateTime,
   formatMoney,
@@ -35,13 +37,14 @@ export function OrdersTable({
               <th className="px-4 py-3 font-medium">Customer</th>
               <th className="px-4 py-3 text-right font-medium">Total</th>
               <th className="px-4 py-3 font-medium">Status</th>
+              <th className="px-4 py-3 text-right font-medium">Action</th>
             </tr>
           </thead>
           <tbody className="divide-y">
             {loading ? (
               <tr>
                 <td
-                  colSpan={5}
+                  colSpan={6}
                   className="px-4 py-10 text-center text-muted-foreground"
                 >
                   <span className="inline-flex items-center gap-2">
@@ -53,7 +56,7 @@ export function OrdersTable({
             ) : orders.length === 0 ? (
               <tr>
                 <td
-                  colSpan={5}
+                  colSpan={6}
                   className="px-4 py-10 text-center text-muted-foreground"
                 >
                   No orders have been recorded yet.
@@ -71,7 +74,18 @@ export function OrdersTable({
                   onClick={() => onSelectOrder(order)}
                 >
                   <td className="px-4 py-3 font-medium">
-                    #{shortOrderId(order.id)}
+                    <div className="space-y-1">
+                      <p>#{shortOrderId(order.id)}</p>
+                      {order.invoice ? (
+                        <Link
+                          href={`/invoices/${order.invoice.id}`}
+                          className="text-xs font-medium text-primary underline-offset-4 hover:underline"
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          View Invoice
+                        </Link>
+                      ) : null}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">
                     {formatDateTime(order.created_at)}
@@ -88,6 +102,24 @@ export function OrdersTable({
                     <span className="inline-flex rounded-md bg-muted px-2 py-1 text-xs font-medium capitalize text-muted-foreground">
                       {order.status}
                     </span>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    {order.invoice ? (
+                      <Link
+                        href={`/invoices/${order.invoice.id}`}
+                        className={buttonVariants({
+                          variant: "outline",
+                          size: "sm",
+                        })}
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        View Invoice
+                      </Link>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">
+                        -
+                      </span>
+                    )}
                   </td>
                 </tr>
               ))

@@ -128,3 +128,25 @@
     @apply font-sans;
   }
 }
+
+@media print {
+  body {
+    background: white;
+  }
+
+  aside,
+  header,
+  .print-hidden {
+    display: none !important;
+  }
+
+  main {
+    background: white !important;
+    padding: 0 !important;
+  }
+
+  .invoice-print-area {
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+}

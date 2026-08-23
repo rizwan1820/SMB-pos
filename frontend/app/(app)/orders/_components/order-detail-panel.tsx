@@ -1,7 +1,9 @@
 "use client"
 
-import { Loader2 } from "lucide-react"
+import { FileText, Loader2 } from "lucide-react"
+import Link from "next/link"
 
+import { buttonVariants } from "@/components/ui/button"
 import {
   formatDateTime,
   formatMoney,
@@ -53,19 +55,40 @@ export function OrderDetailPanel({
 
   return (
     <div className="space-y-5">
-      <div>
-        <p className="text-sm text-muted-foreground">Order ID</p>
-        <h3 className="mt-1 break-all text-lg font-semibold">
-          #{shortOrderId(order.id)}
-        </h3>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {formatDateTime(order.created_at)}
-        </p>
-        <p className="mt-2 text-sm">
-          {order.customer_id
-            ? customerNameById.get(order.customer_id) ?? "Customer"
-            : "Walk-in"}
-        </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-sm text-muted-foreground">Order ID</p>
+          <h3 className="mt-1 break-all text-lg font-semibold">
+            #{shortOrderId(order.id)}
+          </h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {formatDateTime(order.created_at)}
+          </p>
+          <p className="mt-2 text-sm">
+            {order.customer_id
+              ? customerNameById.get(order.customer_id) ?? "Customer"
+              : "Walk-in"}
+          </p>
+        </div>
+        {order.invoice ? (
+          <div className="rounded-lg border bg-muted/30 p-3 text-sm">
+            <p className="text-xs text-muted-foreground">Invoice</p>
+            <p className="mt-1 font-medium tabular-nums">
+              {order.invoice.invoice_number}
+            </p>
+            <Link
+              href={`/invoices/${order.invoice.id}`}
+              className={buttonVariants({
+                variant: "default",
+                size: "sm",
+                className: "mt-3 w-full",
+              })}
+            >
+              <FileText aria-hidden="true" />
+              View Invoice
+            </Link>
+          </div>
+        ) : null}
       </div>
 
       <div className="overflow-hidden rounded-lg border">

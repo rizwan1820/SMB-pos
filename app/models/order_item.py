@@ -1,7 +1,7 @@
 import uuid
 from decimal import Decimal
 
-from sqlalchemy import ForeignKey, Numeric
+from sqlalchemy import ForeignKey, Index, Numeric
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -10,6 +10,10 @@ from app.database.base import Base
 
 class OrderItem(Base):
     __tablename__ = "order_items"
+    __table_args__ = (
+        Index("ix_order_items_order_id", "order_id"),
+        Index("ix_order_items_product_id", "product_id"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),

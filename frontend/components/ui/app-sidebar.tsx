@@ -10,6 +10,7 @@ import {
   ShoppingCart,
   ReceiptText,
   RotateCcw,
+  BarChart3,
 } from "lucide-react"
 
 export function AppSidebar() {
@@ -61,6 +62,14 @@ export function AppSidebar() {
         >
           <RotateCcw size={18} />
           Returns
+        </Link>
+
+        <Link
+          href="/reports"
+          className="flex items-center gap-3 rounded-md px-3 py-2 hover:bg-muted"
+        >
+          <BarChart3 size={18} />
+          Reports
         </Link>
 
         <Link

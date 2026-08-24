@@ -1,4 +1,4 @@
-from app.routes import businesses, categories, products, roles, suppliers, users, inventory, customers, orders, invoices, returns
+from app.routes import businesses, categories, products, roles, suppliers, users, inventory, customers, orders, invoices, returns, reports
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,6 +24,7 @@ app.include_router(customers.router)
 app.include_router(orders.router)
 app.include_router(invoices.router)
 app.include_router(returns.router)
+app.include_router(reports.router)
 
 @app.get("/")
 def home():

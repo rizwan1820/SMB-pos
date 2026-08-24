@@ -5,6 +5,7 @@ export type Supplier = {
   phone: string
   email: string
   address: string
+  notes: string | null
   status: string
 }
 
@@ -14,6 +15,7 @@ export type SupplierFormState = {
   phone: string
   email: string
   address: string
+  notes: string
   status: string
 }
 
@@ -23,6 +25,7 @@ export const emptySupplierForm: SupplierFormState = {
   phone: "",
   email: "",
   address: "",
+  notes: "",
   status: "active",
 }
 

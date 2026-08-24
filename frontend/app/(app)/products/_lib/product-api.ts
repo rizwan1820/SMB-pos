@@ -77,6 +77,26 @@ export async function getCategories() {
   return fetchJson<Category[]>("/categories")
 }
 
+export async function createCategory(name: string) {
+  return fetchJson<Category>("/categories", {
+    method: "POST",
+    body: JSON.stringify({ name: name.trim() }),
+  })
+}
+
+export async function updateCategory(categoryId: string, name: string) {
+  return fetchJson<Category>(`/categories/${categoryId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ name: name.trim() }),
+  })
+}
+
+export async function archiveCategory(categoryId: string) {
+  return fetchJson<Category>(`/categories/${categoryId}/archive`, {
+    method: "PATCH",
+  })
+}
+
 export async function getProducts(filters: {
   search: string
   categoryId: string

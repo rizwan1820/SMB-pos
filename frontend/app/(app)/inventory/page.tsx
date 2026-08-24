@@ -1,7 +1,9 @@
 "use client"
 
-import { FormEvent, useEffect, useMemo, useState } from "react"
-import { Boxes, ClipboardList, PackageCheck } from "lucide-react"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
+import Link from "next/link"
+import { FormEvent, useMemo, useState } from "react"
+import { Boxes, ClipboardList, PackageCheck, Truck } from "lucide-react"
 
 import {
   Card,
@@ -33,121 +35,92 @@ import {
 } from "@/app/(app)/inventory/_lib/inventory-types"
 
 export default function InventoryPage() {
-  const [products, setProducts] = useState<Product[]>([])
-  const [lowStockProducts, setLowStockProducts] = useState<LowStockProduct[]>(
-    []
-  )
-  const [stock, setStock] = useState<StockSummary | null>(null)
-  const [movements, setMovements] = useState<InventoryMovement[]>([])
+  const queryClient = useQueryClient()
   const [selectedProductId, setSelectedProductId] = useState("")
   const [productSearch, setProductSearch] = useState("")
   const [action, setAction] = useState<InventoryAction>("receive")
   const [form, setForm] = useState<InventoryFormState>(emptyInventoryForm)
-  const [loadingInitial, setLoadingInitial] = useState(true)
-  const [loadingProduct, setLoadingProduct] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
 
+  const productsQuery = useQuery({
+    queryKey: ["inventory", "products"],
+    queryFn: getProducts,
+  })
+  const lowStockQuery = useQuery({
+    queryKey: ["inventory", "low-stock"],
+    queryFn: getLowStockProducts,
+  })
+  const stockQuery = useQuery({
+    queryKey: ["inventory", "stock", selectedProductId],
+    queryFn: () => getProductStock(selectedProductId),
+    enabled: Boolean(selectedProductId),
+  })
+  const movementsQuery = useQuery({
+    queryKey: ["inventory", "movements", selectedProductId],
+    queryFn: () => getProductMovements(selectedProductId),
+    enabled: Boolean(selectedProductId),
+  })
+
+  const products = productsQuery.data ?? []
+  const lowStockProducts = lowStockQuery.data ?? []
+  const stock = stockQuery.data ?? null
+  const movements = movementsQuery.data ?? []
+  const loadingProduct =
+    Boolean(selectedProductId) &&
+    (stockQuery.isLoading || movementsQuery.isLoading)
+  const error =
+    actionError ??
+    (productsQuery.error instanceof Error ? productsQuery.error.message : null) ??
+    (lowStockQuery.error instanceof Error ? lowStockQuery.error.message : null) ??
+    (stockQuery.error instanceof Error ? stockQuery.error.message : null) ??
+    (movementsQuery.error instanceof Error ? movementsQuery.error.message : null)
   const selectedProduct = useMemo(
     () => products.find((product) => product.id === selectedProductId) ?? null,
     [products, selectedProductId]
   )
 
-  async function loadLowStock() {
-    const data = await getLowStockProducts()
-
-    setLowStockProducts(data)
-  }
-
-  async function loadSelectedProduct(productId: string) {
-    if (!productId) {
-      setStock(null)
-      setMovements([])
-      return
-    }
-
-    setLoadingProduct(true)
-    setError(null)
-
-    try {
-      const [stockData, movementData] = await Promise.all([
-        getProductStock(productId),
-        getProductMovements(productId),
-      ])
-
-      setStock(stockData)
-      setMovements(movementData)
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Unable to load inventory for this product."
-      )
-    } finally {
-      setLoadingProduct(false)
-    }
-  }
-
-  useEffect(() => {
-    let active = true
-
-    async function loadInventory() {
-      setLoadingInitial(true)
-      setError(null)
-
-      try {
-        const [productData, lowStockData] = await Promise.all([
-          getProducts(),
-          getLowStockProducts(),
-        ])
-
-        if (!active) {
-          return
-        }
-
-        setProducts(productData)
-        setLowStockProducts(lowStockData)
-      } catch (err) {
-        if (active) {
-          setError(
-            err instanceof Error ? err.message : "Unable to load inventory."
-          )
-        }
-      } finally {
-        if (active) {
-          setLoadingInitial(false)
-        }
-      }
-    }
-
-    loadInventory()
-
-    return () => {
-      active = false
-    }
-  }, [])
-
-  useEffect(() => {
-    loadSelectedProduct(selectedProductId)
-  }, [selectedProductId])
-
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+
+    if (saving) {
+      return
+    }
 
     if (!selectedProductId) {
       setFormError("Select a product before recording inventory.")
       return
     }
 
+    if (Number(form.quantity) <= 0) {
+      setFormError("Quantity must be greater than 0.")
+      return
+    }
+
+    if ((action === "damaged" || action === "lost") && !form.notes.trim()) {
+      setFormError("Notes are required for damaged or lost stock.")
+      return
+    }
+
     setSaving(true)
     setFormError(null)
-    setError(null)
+    setActionError(null)
 
     try {
       await createInventoryMovement(action, selectedProductId, form)
       setForm(emptyInventoryForm)
-      await Promise.all([loadSelectedProduct(selectedProductId), loadLowStock()])
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ["inventory", "stock", selectedProductId],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["inventory", "movements", selectedProductId],
+        }),
+        queryClient.invalidateQueries({ queryKey: ["inventory", "low-stock"] }),
+        queryClient.invalidateQueries({ queryKey: ["reports"] }),
+        queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
+      ])
     } catch (err) {
       setFormError(
         err instanceof Error ? err.message : "Unable to save inventory movement."
@@ -159,11 +132,20 @@ export default function InventoryPage() {
 
   return (
     <main className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-normal">Inventory</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Track stock levels, receive goods, and review product movement.
-        </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-normal">Inventory</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Track stock levels, receive goods, and review product movement.
+          </p>
+        </div>
+        <Link
+          href="/inventory/receipts"
+          className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg bg-primary px-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/80"
+        >
+          <Truck aria-hidden="true" className="size-4" />
+          Stock Receipts
+        </Link>
       </div>
 
       {error ? (
@@ -277,7 +259,7 @@ export default function InventoryPage() {
           <CardContent>
             <LowStockList
               products={lowStockProducts}
-              loading={loadingInitial}
+              loading={lowStockQuery.isLoading}
               onSelectProduct={setSelectedProductId}
             />
           </CardContent>

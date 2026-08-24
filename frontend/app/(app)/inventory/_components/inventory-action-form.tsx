@@ -25,8 +25,13 @@ type InventoryActionFormProps = {
 const actionLabels: Record<InventoryAction, string> = {
   opening: "Opening Stock",
   receive: "Receive Stock",
-  adjust: "Adjust Stock",
+  adjustment_in: "Adjustment In",
+  adjustment_out: "Adjustment Out",
+  damaged: "Damaged",
+  lost: "Lost",
 }
+
+const requiresNotes = new Set<InventoryAction>(["damaged", "lost"])
 
 export function InventoryActionForm({
   selectedProductId,
@@ -38,6 +43,8 @@ export function InventoryActionForm({
   onFormChange,
   onSubmit,
 }: InventoryActionFormProps) {
+  const notesRequired = requiresNotes.has(action)
+
   return (
     <form className="space-y-4" onSubmit={onSubmit}>
       <div className="grid gap-4 sm:grid-cols-2">
@@ -53,7 +60,10 @@ export function InventoryActionForm({
           >
             <option value="opening">Opening Stock</option>
             <option value="receive">Receive Stock</option>
-            <option value="adjust">Adjust Stock</option>
+            <option value="adjustment_in">Adjustment In</option>
+            <option value="adjustment_out">Adjustment Out</option>
+            <option value="damaged">Damaged</option>
+            <option value="lost">Lost</option>
           </select>
         </div>
         <div className="space-y-2">
@@ -61,6 +71,7 @@ export function InventoryActionForm({
           <Input
             id="quantity"
             required
+            min="0.001"
             step="0.001"
             type="number"
             value={form.quantity}
@@ -84,7 +95,12 @@ export function InventoryActionForm({
           <Label htmlFor="notes">Notes</Label>
           <Input
             id="notes"
-            placeholder="Optional notes"
+            required={notesRequired}
+            placeholder={
+              notesRequired
+                ? "Required reason for damaged or lost stock"
+                : "Optional notes"
+            }
             value={form.notes}
             onChange={(event) =>
               onFormChange({ ...form, notes: event.target.value })

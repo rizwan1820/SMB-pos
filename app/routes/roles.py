@@ -9,8 +9,11 @@ router = APIRouter()
 
 
 @router.post("/roles")
-def create_role(role: RoleCreate):
-    return role_service.create_role(role)
+def create_role(
+    role: RoleCreate,
+    current_user: Profile = Depends(get_current_user),
+):
+    return role_service.create_role(role, current_user.business_id)
 
 
 @router.get("/my-roles")

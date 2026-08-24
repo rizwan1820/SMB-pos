@@ -45,3 +45,79 @@ def get_categories_for_business(business_id):
 
     finally:
         db.close()
+
+
+def update_category(category_id, category_update, business_id):
+    db = SessionLocal()
+
+    try:
+        category = (
+            db.query(Category)
+            .filter(
+                Category.id == category_id,
+                Category.business_id == business_id
+            )
+            .first()
+        )
+
+        if not category:
+            raise HTTPException(
+                status_code=404,
+                detail="Category not found"
+            )
+
+        category.name = category_update.name
+
+        db.commit()
+        db.refresh(category)
+
+        return category
+
+    except IntegrityError:
+        db.rollback()
+
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid category data"
+        )
+
+    finally:
+        db.close()
+
+
+def archive_category(category_id, business_id):
+    db = SessionLocal()
+
+    try:
+        category = (
+            db.query(Category)
+            .filter(
+                Category.id == category_id,
+                Category.business_id == business_id
+            )
+            .first()
+        )
+
+        if not category:
+            raise HTTPException(
+                status_code=404,
+                detail="Category not found"
+            )
+
+        category.status = "archived"
+
+        db.commit()
+        db.refresh(category)
+
+        return category
+
+    except IntegrityError:
+        db.rollback()
+
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid category data"
+        )
+
+    finally:
+        db.close()

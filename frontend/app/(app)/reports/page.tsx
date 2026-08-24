@@ -1,10 +1,12 @@
 "use client"
 
+import { useQuery } from "@tanstack/react-query"
 import type { ComponentType, SVGProps } from "react"
-import { useEffect, useMemo, useState } from "react"
+import { useState } from "react"
 import {
   BadgeDollarSign,
   PackageSearch,
+  Boxes,
   RotateCcw,
   Users,
 } from "lucide-react"
@@ -18,11 +20,13 @@ import {
 } from "@/components/ui/card"
 import { CustomersSection } from "@/app/(app)/reports/_components/customers-section"
 import { DateRangeFilter } from "@/app/(app)/reports/_components/date-range-filter"
+import { InventorySection } from "@/app/(app)/reports/_components/inventory-section"
 import { ProductsSection } from "@/app/(app)/reports/_components/products-section"
 import { ReturnsSection } from "@/app/(app)/reports/_components/returns-section"
 import { SalesSection } from "@/app/(app)/reports/_components/sales-section"
 import {
   getCustomersReport,
+  getInventoryReport,
   getProductsReport,
   getReturnsReport,
   getSalesReport,
@@ -30,19 +34,19 @@ import {
 import type {
   CustomersReport,
   DateRangeState,
+  InventoryReport,
   ProductsReport,
   ReturnsReport,
   SalesReport,
 } from "@/app/(app)/reports/_lib/report-types"
 
-type ReportTab = "sales" | "products" | "customers" | "returns"
-
-type ReportData = {
-  sales: SalesReport | null
-  products: ProductsReport | null
-  customers: CustomersReport | null
-  returns: ReturnsReport | null
-}
+type ReportTab = "sales" | "products" | "inventory" | "customers" | "returns"
+type ReportResult =
+  | SalesReport
+  | ProductsReport
+  | InventoryReport
+  | CustomersReport
+  | ReturnsReport
 
 const today = new Date().toISOString().slice(0, 10)
 
@@ -53,6 +57,7 @@ const tabs: Array<{
 }> = [
   { value: "sales", label: "Sales", icon: BadgeDollarSign },
   { value: "products", label: "Products", icon: PackageSearch },
+  { value: "inventory", label: "Inventory", icon: Boxes },
   { value: "customers", label: "Customers", icon: Users },
   { value: "returns", label: "Returns", icon: RotateCcw },
 ]
@@ -64,101 +69,39 @@ export default function ReportsPage() {
     endDate: today,
   })
   const [activeTab, setActiveTab] = useState<ReportTab>("sales")
-  const [data, setData] = useState<ReportData>({
-    sales: null,
-    products: null,
-    customers: null,
-    returns: null,
+  const hasValidRange =
+    rangeState.range !== "custom" ||
+    Boolean(rangeState.startDate && rangeState.endDate)
+  const reportQuery = useQuery<ReportResult>({
+    queryKey: [
+      "reports",
+      activeTab,
+      activeTab === "inventory" ? "current" : rangeState,
+    ],
+    queryFn: () => {
+      if (activeTab === "sales") {
+        return getSalesReport(rangeState)
+      }
+
+      if (activeTab === "products") {
+        return getProductsReport(rangeState)
+      }
+
+      if (activeTab === "inventory") {
+        return getInventoryReport()
+      }
+
+      if (activeTab === "customers") {
+        return getCustomersReport(rangeState)
+      }
+
+      return getReturnsReport(rangeState)
+    },
+    enabled: activeTab === "inventory" || hasValidRange,
   })
-  const [loadedKeys, setLoadedKeys] = useState<Set<string>>(new Set())
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const rangeKey = useMemo(() => JSON.stringify(rangeState), [rangeState])
-  const activeKey = `${activeTab}:${rangeKey}`
-
-  useEffect(() => {
-    setData({
-      sales: null,
-      products: null,
-      customers: null,
-      returns: null,
-    })
-    setLoadedKeys(new Set())
-    setError(null)
-  }, [rangeKey])
-
-  useEffect(() => {
-    let active = true
-
-    async function loadReport() {
-      if (
-        rangeState.range === "custom" &&
-        (!rangeState.startDate || !rangeState.endDate)
-      ) {
-        return
-      }
-
-      if (loadedKeys.has(activeKey)) {
-        return
-      }
-
-      try {
-        setLoading(true)
-        setError(null)
-
-        if (activeTab === "sales") {
-          const sales = await getSalesReport(rangeState)
-          if (active) {
-            setData((current) => ({ ...current, sales }))
-          }
-        }
-
-        if (activeTab === "products") {
-          const products = await getProductsReport(rangeState)
-          if (active) {
-            setData((current) => ({ ...current, products }))
-          }
-        }
-
-        if (activeTab === "customers") {
-          const customers = await getCustomersReport(rangeState)
-          if (active) {
-            setData((current) => ({ ...current, customers }))
-          }
-        }
-
-        if (activeTab === "returns") {
-          const returns = await getReturnsReport(rangeState)
-          if (active) {
-            setData((current) => ({ ...current, returns }))
-          }
-        }
-
-        if (active) {
-          setLoadedKeys((current) => new Set(current).add(activeKey))
-        }
-      } catch (err) {
-        if (active) {
-          setError(
-            err instanceof Error ? err.message : "Unable to load report."
-          )
-        }
-      } finally {
-        if (active) {
-          setLoading(false)
-        }
-      }
-    }
-
-    loadReport()
-
-    return () => {
-      active = false
-    }
-  }, [activeKey, activeTab, loadedKeys, rangeState])
-
-  const activeReport = loadedKeys.has(activeKey) ? data[activeTab] : null
+  const activeReport = reportQuery.data ?? null
+  const error =
+    reportQuery.error instanceof Error ? reportQuery.error.message : null
 
   return (
     <main className="space-y-5">
@@ -198,26 +141,30 @@ export default function ReportsPage() {
         </Card>
       ) : null}
 
-      {!activeReport && (loading || !loadedKeys.has(activeKey)) ? (
+      {!activeReport && reportQuery.isLoading ? (
         <div className="grid gap-4">
           <Card className="min-h-52 animate-pulse rounded-lg" />
           <Card className="min-h-52 animate-pulse rounded-lg" />
         </div>
       ) : null}
 
-      {!loading && activeTab === "sales" && activeReport ? (
+      {activeTab === "sales" && activeReport ? (
         <SalesSection report={activeReport as SalesReport} />
       ) : null}
 
-      {!loading && activeTab === "products" && activeReport ? (
+      {activeTab === "products" && activeReport ? (
         <ProductsSection report={activeReport as ProductsReport} />
       ) : null}
 
-      {!loading && activeTab === "customers" && activeReport ? (
+      {activeTab === "inventory" && activeReport ? (
+        <InventorySection report={activeReport as InventoryReport} />
+      ) : null}
+
+      {activeTab === "customers" && activeReport ? (
         <CustomersSection report={activeReport as CustomersReport} />
       ) : null}
 
-      {!loading && activeTab === "returns" && activeReport ? (
+      {activeTab === "returns" && activeReport ? (
         <ReturnsSection report={activeReport as ReturnsReport} />
       ) : null}
     </main>

@@ -37,11 +37,20 @@ def resolve_date_range(
     if range_name == ReportRange.today:
         start = today
         end = today
+    elif range_name == ReportRange.yesterday:
+        start = date.fromordinal(today.toordinal() - 1)
+        end = start
     elif range_name == ReportRange.last_7_days:
         start = date.fromordinal(today.toordinal() - 6)
         end = today
+    elif range_name == ReportRange.this_week:
+        start = date.fromordinal(today.toordinal() - today.weekday())
+        end = today
     elif range_name == ReportRange.this_month:
         start = today.replace(day=1)
+        end = today
+    elif range_name == ReportRange.this_year:
+        start = today.replace(month=1, day=1)
         end = today
     elif range_name == ReportRange.custom:
         if start_date is None or end_date is None:
@@ -162,12 +171,30 @@ def get_dashboard(range_name, start_date, end_date, current_user):
         total_sales = decimal_value(sales_row[0])
         order_count = sales_row[1]
         total_refunds = decimal_value(total_refunds)
+        products_sold = (
+            db.query(func.coalesce(func.sum(OrderItem.quantity), 0))
+            .join(Order, Order.id == OrderItem.order_id)
+            .filter(
+                Order.business_id == current_user.business_id,
+                Order.status == "completed",
+                Order.created_at >= start_at,
+                Order.created_at < end_at,
+            )
+            .scalar()
+        )
+        average_order_value = (
+            total_sales / Decimal(order_count)
+            if order_count
+            else Decimal("0.00")
+        )
 
         return {
             "total_sales": total_sales,
             "order_count": order_count,
             "total_refunds": total_refunds,
             "net_sales": total_sales - total_refunds,
+            "products_sold": decimal_value(products_sold),
+            "average_order_value": average_order_value,
             "low_stock_count": low_stock_query(
                 db,
                 current_user.business_id,
@@ -505,6 +532,112 @@ def get_returns_report(range_name, start_date, end_date, current_user):
                 }
                 for row in daily_returns
             ],
+        }
+
+    finally:
+        db.close()
+
+
+def get_inventory_report(current_user):
+    db = SessionLocal()
+
+    try:
+        stock_totals = (
+            db.query(
+                InventoryMovement.product_id.label("product_id"),
+                func.sum(InventoryMovement.quantity).label("current_stock"),
+            )
+            .filter(InventoryMovement.business_id == current_user.business_id)
+            .group_by(InventoryMovement.product_id)
+            .subquery()
+        )
+
+        current_stock = func.coalesce(stock_totals.c.current_stock, 0)
+        line_value = current_stock * Product.cost_price
+
+        inventory_rows = (
+            db.query(
+                Product.id,
+                Product.name,
+                Product.sku,
+                Product.low_stock_threshold,
+                Product.status,
+                Product.cost_price,
+                current_stock.label("current_stock"),
+                line_value.label("inventory_value"),
+            )
+            .outerjoin(stock_totals, Product.id == stock_totals.c.product_id)
+            .filter(
+                Product.business_id == current_user.business_id,
+                Product.status.not_ilike("archived"),
+            )
+            .order_by(Product.name)
+            .all()
+        )
+
+        movement_rows = (
+            db.query(
+                InventoryMovement.created_at,
+                Product.name.label("product_name"),
+                Product.sku,
+                InventoryMovement.movement_type,
+                InventoryMovement.quantity,
+                InventoryMovement.reference,
+                InventoryMovement.notes,
+            )
+            .join(Product, Product.id == InventoryMovement.product_id)
+            .filter(
+                InventoryMovement.business_id == current_user.business_id,
+                Product.business_id == current_user.business_id,
+            )
+            .order_by(InventoryMovement.created_at.desc())
+            .limit(100)
+            .all()
+        )
+
+        total_inventory_value = sum(
+            decimal_value(row.inventory_value)
+            for row in inventory_rows
+        )
+
+        return {
+            "current_inventory": [
+                {
+                    "product_id": row.id,
+                    "name": row.name,
+                    "sku": row.sku,
+                    "current_stock": row.current_stock,
+                    "low_stock_threshold": row.low_stock_threshold,
+                    "status": row.status,
+                }
+                for row in inventory_rows
+            ],
+            "movement_history": [
+                {
+                    "date": row.created_at,
+                    "product_name": row.product_name,
+                    "sku": row.sku,
+                    "movement_type": row.movement_type,
+                    "quantity": row.quantity,
+                    "reference": row.reference,
+                    "notes": row.notes,
+                }
+                for row in movement_rows
+            ],
+            "inventory_value": {
+                "total_inventory_value": total_inventory_value,
+                "items": [
+                    {
+                        "product_id": row.id,
+                        "name": row.name,
+                        "sku": row.sku,
+                        "current_stock": row.current_stock,
+                        "cost_price": row.cost_price,
+                        "inventory_value": row.inventory_value,
+                    }
+                    for row in inventory_rows
+                ],
+            },
         }
 
     finally:

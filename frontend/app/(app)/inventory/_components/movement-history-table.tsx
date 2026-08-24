@@ -14,6 +14,23 @@ type MovementHistoryTableProps = {
   hasSelectedProduct: boolean
 }
 
+const movementLabels: Record<string, string> = {
+  opening: "Opening Stock",
+  received: "Received",
+  receive: "Received",
+  sale: "Sale",
+  return: "Return",
+  adjustment: "Adjustment",
+  adjustment_in: "Adjustment In",
+  adjustment_out: "Adjustment Out",
+  damaged: "Damaged",
+  lost: "Lost",
+}
+
+function movementLabel(type: string) {
+  return movementLabels[type] ?? type.replace(/_/g, " ")
+}
+
 export function MovementHistoryTable({
   movements,
   loading,
@@ -68,7 +85,7 @@ export function MovementHistoryTable({
                 <tr key={`${movement.created_at}-${index}`} className="bg-card">
                   <td className="px-4 py-3">
                     <span className="inline-flex rounded-md bg-muted px-2 py-1 text-xs font-medium capitalize text-muted-foreground">
-                      {movement.movement_type}
+                      {movementLabel(movement.movement_type)}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums">

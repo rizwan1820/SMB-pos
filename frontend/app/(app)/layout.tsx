@@ -7,6 +7,7 @@ import { AppHeader } from "@/components/ui/app-header"
 
 type AppUser = {
   name: string
+  is_platform_admin: boolean
 }
 
 export default function AppLayout({
@@ -59,7 +60,7 @@ export default function AppLayout({
 
   return (
     <div className="flex min-h-screen">
-      <AppSidebar />
+      <AppSidebar isPlatformAdmin={Boolean(user?.is_platform_admin)} />
 
       <div className="flex flex-1 flex-col">
         <AppHeader userName={user?.name ?? "User"} />

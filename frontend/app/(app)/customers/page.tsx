@@ -1,5 +1,6 @@
 "use client"
 
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { FormEvent, useEffect, useState } from "react"
 import { UserPlus } from "lucide-react"
 
@@ -29,12 +30,12 @@ import {
 } from "@/app/(app)/customers/_lib/customer-types"
 
 export default function CustomersPage() {
-  const [customers, setCustomers] = useState<Customer[]>([])
+  const queryClient = useQueryClient()
   const [search, setSearch] = useState("")
-  const [loading, setLoading] = useState(true)
+  const [debouncedSearch, setDebouncedSearch] = useState("")
   const [saving, setSaving] = useState(false)
   const [archivingId, setArchivingId] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
   const [formOpen, setFormOpen] = useState(false)
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null)
@@ -43,28 +44,22 @@ export default function CustomersPage() {
   )
   const [form, setForm] = useState<CustomerFormState>(emptyCustomerForm)
 
-  async function loadCustomers() {
-    setLoading(true)
-    setError(null)
-
-    try {
-      const data = await getCustomers(search)
-
-      setCustomers(data)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to load customers.")
-    } finally {
-      setLoading(false)
-    }
-  }
-
   useEffect(() => {
     const handle = window.setTimeout(() => {
-      loadCustomers()
+      setDebouncedSearch(search)
     }, 250)
 
     return () => window.clearTimeout(handle)
   }, [search])
+
+  const customersQuery = useQuery({
+    queryKey: ["customers", { search: debouncedSearch }],
+    queryFn: () => getCustomers(debouncedSearch),
+  })
+  const customers = customersQuery.data ?? []
+  const error =
+    actionError ??
+    (customersQuery.error instanceof Error ? customersQuery.error.message : null)
 
   function openAddForm() {
     setEditingCustomer(null)
@@ -82,6 +77,11 @@ export default function CustomersPage() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+
+    if (saving) {
+      return
+    }
+
     setSaving(true)
     setFormError(null)
 
@@ -93,7 +93,12 @@ export default function CustomersPage() {
       }
 
       setFormOpen(false)
-      await loadCustomers()
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["customers"] }),
+        queryClient.invalidateQueries({ queryKey: ["pos", "customers"] }),
+        queryClient.invalidateQueries({ queryKey: ["orders", "customers"] }),
+        queryClient.invalidateQueries({ queryKey: ["reports", "customers"] }),
+      ])
     } catch (err) {
       setFormError(
         err instanceof Error ? err.message : "Unable to save customer."
@@ -104,19 +109,24 @@ export default function CustomersPage() {
   }
 
   async function confirmArchive() {
-    if (!customerToArchive) {
+    if (!customerToArchive || archivingId) {
       return
     }
 
     setArchivingId(customerToArchive.id)
-    setError(null)
+    setActionError(null)
 
     try {
       await archiveCustomer(customerToArchive.id)
       setCustomerToArchive(null)
-      await loadCustomers()
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["customers"] }),
+        queryClient.invalidateQueries({ queryKey: ["pos", "customers"] }),
+        queryClient.invalidateQueries({ queryKey: ["orders", "customers"] }),
+        queryClient.invalidateQueries({ queryKey: ["reports", "customers"] }),
+      ])
     } catch (err) {
-      setError(
+      setActionError(
         err instanceof Error ? err.message : "Unable to archive customer."
       )
     } finally {
@@ -157,7 +167,7 @@ export default function CustomersPage() {
 
           <CustomerTable
             customers={customers}
-            loading={loading}
+            loading={customersQuery.isLoading}
             archivingId={archivingId}
             onEdit={openEditForm}
             onArchive={setCustomerToArchive}

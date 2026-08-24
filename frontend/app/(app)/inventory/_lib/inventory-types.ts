@@ -27,7 +27,13 @@ export type LowStockProduct = {
   low_stock_threshold: number
 }
 
-export type InventoryAction = "opening" | "receive" | "adjust"
+export type InventoryAction =
+  | "opening"
+  | "receive"
+  | "adjustment_in"
+  | "adjustment_out"
+  | "damaged"
+  | "lost"
 
 export type InventoryFormState = {
   quantity: string

@@ -17,6 +17,14 @@ class InventoryMovement(Base):
             "business_id",
             "product_id",
         ),
+        Index(
+            "ix_inventory_movements_stock_receipt_id",
+            "stock_receipt_id",
+        ),
+        Index(
+            "ix_inventory_movements_stock_receipt_item_id",
+            "stock_receipt_item_id",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -54,6 +62,18 @@ class InventoryMovement(Base):
 
     notes: Mapped[str | None] = mapped_column(
         Text,
+        nullable=True
+    )
+
+    stock_receipt_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("stock_receipts.id"),
+        nullable=True
+    )
+
+    stock_receipt_item_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("stock_receipt_items.id"),
         nullable=True
     )
 

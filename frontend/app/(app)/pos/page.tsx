@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { useMemo, useState } from "react"
 
 import {
   Card,
@@ -27,21 +28,37 @@ import type {
 } from "@/app/(app)/pos/_lib/pos-types"
 
 export default function PosPage() {
-  const [products, setProducts] = useState<Product[]>([])
-  const [customers, setCustomers] = useState<Customer[]>([])
+  const queryClient = useQueryClient()
   const [cartItems, setCartItems] = useState<CartItem[]>([])
   const [productSearch, setProductSearch] = useState("")
   const [selectedCustomerId, setSelectedCustomerId] = useState("")
   const [discountAmount, setDiscountAmount] = useState("0")
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash")
   const [paymentReference, setPaymentReference] = useState("")
-  const [loading, setLoading] = useState(true)
   const [processing, setProcessing] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [checkoutError, setCheckoutError] = useState<string | null>(null)
   const [checkoutResult, setCheckoutResult] = useState<CheckoutResult | null>(
     null
   )
+
+  const productsQuery = useQuery({
+    queryKey: ["pos", "products"],
+    queryFn: getPosProducts,
+  })
+  const customersQuery = useQuery({
+    queryKey: ["pos", "customers"],
+    queryFn: getPosCustomers,
+  })
+  const products = (productsQuery.data ?? []).filter(
+    (product) => product.status !== "archived"
+  )
+  const customers = (customersQuery.data ?? []).filter(
+    (customer) => customer.status !== "archived"
+  )
+  const loading = productsQuery.isLoading || customersQuery.isLoading
+  const error =
+    (productsQuery.error instanceof Error ? productsQuery.error.message : null) ??
+    (customersQuery.error instanceof Error ? customersQuery.error.message : null)
 
   const totals = useMemo(() => {
     const subtotal = cartItems.reduce(
@@ -67,47 +84,6 @@ export default function PosPage() {
       totalAmount: Math.max(subtotal - discount + taxAmount, 0),
     }
   }, [cartItems, discountAmount])
-
-  useEffect(() => {
-    let active = true
-
-    async function loadPosData() {
-      setLoading(true)
-      setError(null)
-
-      try {
-        const [productData, customerData] = await Promise.all([
-          getPosProducts(),
-          getPosCustomers(),
-        ])
-
-        if (!active) {
-          return
-        }
-
-        setProducts(
-          productData.filter((product) => product.status !== "archived")
-        )
-        setCustomers(
-          customerData.filter((customer) => customer.status !== "archived")
-        )
-      } catch (err) {
-        if (active) {
-          setError(err instanceof Error ? err.message : "Unable to load POS.")
-        }
-      } finally {
-        if (active) {
-          setLoading(false)
-        }
-      }
-    }
-
-    loadPosData()
-
-    return () => {
-      active = false
-    }
-  }, [])
 
   function addProduct(product: Product) {
     setCheckoutResult(null)
@@ -182,6 +158,16 @@ export default function PosPage() {
       setSelectedCustomerId("")
       setDiscountAmount("0")
       setPaymentReference("")
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["orders"] }),
+        queryClient.invalidateQueries({ queryKey: ["products"] }),
+        queryClient.invalidateQueries({ queryKey: ["pos", "products"] }),
+        queryClient.invalidateQueries({ queryKey: ["inventory"] }),
+        queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
+        queryClient.invalidateQueries({ queryKey: ["reports"] }),
+        queryClient.invalidateQueries({ queryKey: ["invoices"] }),
+        queryClient.invalidateQueries({ queryKey: ["returns", "orders"] }),
+      ])
     } catch (err) {
       setCheckoutError(
         err instanceof Error ? err.message : "Checkout could not be completed."

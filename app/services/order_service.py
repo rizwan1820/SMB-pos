@@ -1,3 +1,4 @@
+import re
 from decimal import Decimal, ROUND_HALF_UP
 
 from fastapi import HTTPException
@@ -25,27 +26,36 @@ def money(value: Decimal) -> Decimal:
 
 
 def generate_invoice_number(db, business_id):
-    db.query(Business).filter(
+    business = db.query(Business).filter(
         Business.id == business_id,
     ).with_for_update().one()
+
+    prefix = (business.invoice_prefix or "INV").strip().upper().rstrip("-")
+    prefix = prefix or "INV"
 
     latest_invoice_number = (
         db.query(Invoice.invoice_number)
         .filter(
             Invoice.business_id == business_id,
-            Invoice.invoice_number.like("INV-%"),
+            Invoice.invoice_number.like(f"{prefix}-%"),
         )
         .order_by(Invoice.invoice_number.desc())
         .limit(1)
         .scalar()
     )
 
-    if latest_invoice_number:
-        next_sequence = int(latest_invoice_number.removeprefix("INV-")) + 1
-    else:
-        next_sequence = 1
+    next_sequence = 1
 
-    return f"INV-{next_sequence:06d}"
+    if latest_invoice_number:
+        match = re.fullmatch(
+            rf"{re.escape(prefix)}-(\d+)",
+            latest_invoice_number,
+        )
+
+        if match:
+            next_sequence = int(match.group(1)) + 1
+
+    return f"{prefix}-{next_sequence:06d}"
 
 
 def order_response(order, order_items=None, payment=None, invoice=None):

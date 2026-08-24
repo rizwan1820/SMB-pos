@@ -18,6 +18,13 @@ class Order(Base):
             "status",
             "created_at",
         ),
+        Index(
+            "ix_orders_business_customer_status_created_at",
+            "business_id",
+            "customer_id",
+            "status",
+            "created_at",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(

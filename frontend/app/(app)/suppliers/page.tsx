@@ -1,6 +1,7 @@
 "use client"
 
-import { FormEvent, useEffect, useState } from "react"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { FormEvent, useState } from "react"
 import { Truck } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -28,11 +29,10 @@ import {
 } from "@/app/(app)/suppliers/_lib/supplier-types"
 
 export default function SuppliersPage() {
-  const [suppliers, setSuppliers] = useState<Supplier[]>([])
-  const [loading, setLoading] = useState(true)
+  const queryClient = useQueryClient()
   const [saving, setSaving] = useState(false)
   const [archivingId, setArchivingId] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
   const [formOpen, setFormOpen] = useState(false)
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null)
@@ -41,24 +41,14 @@ export default function SuppliersPage() {
   )
   const [form, setForm] = useState<SupplierFormState>(emptySupplierForm)
 
-  async function loadSuppliers() {
-    setLoading(true)
-    setError(null)
-
-    try {
-      const data = await getSuppliers()
-
-      setSuppliers(data)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to load suppliers.")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    loadSuppliers()
-  }, [])
+  const suppliersQuery = useQuery({
+    queryKey: ["suppliers"],
+    queryFn: getSuppliers,
+  })
+  const suppliers = suppliersQuery.data ?? []
+  const error =
+    actionError ??
+    (suppliersQuery.error instanceof Error ? suppliersQuery.error.message : null)
 
   function openAddForm() {
     setEditingSupplier(null)
@@ -76,6 +66,11 @@ export default function SuppliersPage() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+
+    if (saving) {
+      return
+    }
+
     setSaving(true)
     setFormError(null)
 
@@ -87,7 +82,7 @@ export default function SuppliersPage() {
       }
 
       setFormOpen(false)
-      await loadSuppliers()
+      await queryClient.invalidateQueries({ queryKey: ["suppliers"] })
     } catch (err) {
       setFormError(
         err instanceof Error ? err.message : "Unable to save supplier."
@@ -98,19 +93,19 @@ export default function SuppliersPage() {
   }
 
   async function confirmArchive() {
-    if (!supplierToArchive) {
+    if (!supplierToArchive || archivingId) {
       return
     }
 
     setArchivingId(supplierToArchive.id)
-    setError(null)
+    setActionError(null)
 
     try {
       await archiveSupplier(supplierToArchive.id)
       setSupplierToArchive(null)
-      await loadSuppliers()
+      await queryClient.invalidateQueries({ queryKey: ["suppliers"] })
     } catch (err) {
-      setError(
+      setActionError(
         err instanceof Error ? err.message : "Unable to archive supplier."
       )
     } finally {
@@ -149,7 +144,7 @@ export default function SuppliersPage() {
 
           <SupplierTable
             suppliers={suppliers}
-            loading={loading}
+            loading={suppliersQuery.isLoading}
             archivingId={archivingId}
             onEdit={openEditForm}
             onArchive={setSupplierToArchive}

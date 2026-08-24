@@ -29,7 +29,8 @@ def create_supplier(supplier, business_id):
             contact_person=supplier.contact_person,
             phone=supplier.phone,
             email=supplier.email,
-            address=supplier.address
+            address=supplier.address,
+            notes=supplier.notes
         )
 
         db.add(new_supplier)

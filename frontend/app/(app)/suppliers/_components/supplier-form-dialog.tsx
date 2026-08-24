@@ -126,6 +126,17 @@ export function SupplierFormDialog({
                   }
                 />
               </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="notes">Notes</Label>
+                <textarea
+                  id="notes"
+                  className="min-h-24 w-full rounded-lg border border-input bg-background px-2.5 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  value={form.notes}
+                  onChange={(event) =>
+                    onFormChange({ ...form, notes: event.target.value })
+                  }
+                />
+              </div>
               {editingSupplier ? (
                 <div className="space-y-2 sm:col-span-2">
                   <Label htmlFor="status">Status</Label>

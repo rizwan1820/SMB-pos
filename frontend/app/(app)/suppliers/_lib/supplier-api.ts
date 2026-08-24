@@ -38,6 +38,7 @@ export function supplierToForm(supplier: Supplier): SupplierFormState {
     phone: supplier.phone,
     email: supplier.email,
     address: supplier.address,
+    notes: supplier.notes ?? "",
     status: supplier.status,
   }
 }
@@ -49,6 +50,7 @@ function supplierPayload(form: SupplierFormState) {
     phone: form.phone.trim(),
     email: form.email.trim(),
     address: form.address.trim(),
+    notes: form.notes.trim() || null,
     status: form.status,
   }
 }

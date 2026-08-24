@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, func
+from sqlalchemy import DateTime, ForeignKey, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -40,6 +40,18 @@ class Customer(Base):
 
     address: Mapped[str | None] = mapped_column(
         String(500),
+        nullable=True
+    )
+
+    customer_type: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default="individual",
+        server_default="individual"
+    )
+
+    notes: Mapped[str | None] = mapped_column(
+        Text,
         nullable=True
     )
 

@@ -20,6 +20,14 @@ type InvoiceDetail = {
   }
   business: {
     name: string
+    logo_url: string | null
+    address: string | null
+    phone: string | null
+    email: string | null
+    currency: string
+    tax_label: string
+    invoice_business_name: string | null
+    invoice_business_details: string | null
   }
   customer: {
     id: string
@@ -61,16 +69,19 @@ function apiUrl(endpoint: string) {
   return `${baseUrl}${endpoint}`
 }
 
-function formatMoney(value: string | number) {
+function formatMoney(value: string | number, currency: string) {
   const amount = Number(value)
 
   if (Number.isNaN(amount)) {
-    return "$0.00"
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+    }).format(0)
   }
 
   return new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "USD",
+    currency,
   }).format(amount)
 }
 
@@ -164,6 +175,11 @@ export default function InvoicePage() {
     return null
   }
 
+  const businessDisplayName =
+    invoice.business.invoice_business_name || invoice.business.name
+  const currency = invoice.business.currency || "USD"
+  const taxLabel = invoice.business.tax_label || "Tax"
+
   async function downloadPdf() {
     if (!invoice || downloading) {
       return
@@ -237,9 +253,32 @@ export default function InvoicePage() {
           <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <CardTitle className="text-xl">
-                {invoice.business.name}
+                {businessDisplayName}
               </CardTitle>
-              <p className="mt-1 text-sm text-muted-foreground">Invoice</p>
+              <div className="mt-2 space-y-1 text-sm text-muted-foreground">
+                {invoice.business.logo_url ? (
+                  <img
+                    src={invoice.business.logo_url}
+                    alt=""
+                    className="mb-3 max-h-16 max-w-48 object-contain"
+                  />
+                ) : null}
+                {invoice.business.address ? (
+                  <p>{invoice.business.address}</p>
+                ) : null}
+                {invoice.business.phone ? (
+                  <p>{invoice.business.phone}</p>
+                ) : null}
+                {invoice.business.email ? (
+                  <p>{invoice.business.email}</p>
+                ) : null}
+                {invoice.business.invoice_business_details ? (
+                  <p className="whitespace-pre-line">
+                    {invoice.business.invoice_business_details}
+                  </p>
+                ) : null}
+                <p>Invoice</p>
+              </div>
             </div>
             <div className="text-left sm:text-right">
               <p className="text-sm text-muted-foreground">Invoice Number</p>
@@ -293,7 +332,7 @@ export default function InvoicePage() {
               <div className="flex justify-between gap-4">
                 <span className="text-muted-foreground">Amount</span>
                 <span className="tabular-nums">
-                  {formatMoney(invoice.payment.amount)}
+                  {formatMoney(invoice.payment.amount, currency)}
                 </span>
               </div>
               <div className="flex justify-between gap-4">
@@ -324,7 +363,9 @@ export default function InvoicePage() {
                     <th className="px-4 py-3 text-right font-medium">
                       Discount
                     </th>
-                    <th className="px-4 py-3 text-right font-medium">Tax</th>
+                    <th className="px-4 py-3 text-right font-medium">
+                      {taxLabel}
+                    </th>
                     <th className="px-4 py-3 text-right font-medium">
                       Line Total
                     </th>
@@ -340,16 +381,16 @@ export default function InvoicePage() {
                         {item.quantity}
                       </td>
                       <td className="px-4 py-3 text-right tabular-nums">
-                        {formatMoney(item.unit_price)}
+                        {formatMoney(item.unit_price, currency)}
                       </td>
                       <td className="px-4 py-3 text-right tabular-nums">
-                        {formatMoney(item.discount_amount)}
+                        {formatMoney(item.discount_amount, currency)}
                       </td>
                       <td className="px-4 py-3 text-right tabular-nums">
-                        {formatMoney(item.tax_amount)}
+                        {formatMoney(item.tax_amount, currency)}
                       </td>
                       <td className="px-4 py-3 text-right font-medium tabular-nums">
-                        {formatMoney(item.line_total)}
+                        {formatMoney(item.line_total, currency)}
                       </td>
                     </tr>
                   ))}
@@ -363,25 +404,25 @@ export default function InvoicePage() {
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Subtotal</span>
                 <span className="tabular-nums">
-                  {formatMoney(invoice.totals.subtotal)}
+                  {formatMoney(invoice.totals.subtotal, currency)}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Total Discount</span>
                 <span className="tabular-nums">
-                  {formatMoney(invoice.totals.discount_amount)}
+                  {formatMoney(invoice.totals.discount_amount, currency)}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Tax</span>
+                <span className="text-muted-foreground">{taxLabel}</span>
                 <span className="tabular-nums">
-                  {formatMoney(invoice.totals.tax_amount)}
+                  {formatMoney(invoice.totals.tax_amount, currency)}
                 </span>
               </div>
               <div className="flex justify-between border-t pt-2 text-base font-semibold">
                 <span>Final Total</span>
                 <span className="tabular-nums">
-                  {formatMoney(invoice.totals.total_amount)}
+                  {formatMoney(invoice.totals.total_amount, currency)}
                 </span>
               </div>
             </div>

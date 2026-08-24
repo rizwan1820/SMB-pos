@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useQuery } from "@tanstack/react-query"
+import { useMemo, useState } from "react"
 
 import {
   Card,
@@ -17,23 +18,36 @@ import {
   getOrderProducts,
   getOrders,
 } from "@/app/(app)/orders/_lib/order-api"
-import type {
-  Customer,
-  OrderDetail,
-  OrderSummary,
-  Product,
-} from "@/app/(app)/orders/_lib/order-types"
+import type { OrderSummary } from "@/app/(app)/orders/_lib/order-types"
 
 export default function OrdersPage() {
-  const [orders, setOrders] = useState<OrderSummary[]>([])
-  const [products, setProducts] = useState<Product[]>([])
-  const [customers, setCustomers] = useState<Customer[]>([])
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
-  const [selectedOrder, setSelectedOrder] = useState<OrderDetail | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [detailLoading, setDetailLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [detailError, setDetailError] = useState<string | null>(null)
+
+  const ordersQuery = useQuery({ queryKey: ["orders"], queryFn: getOrders })
+  const productsQuery = useQuery({
+    queryKey: ["orders", "products"],
+    queryFn: getOrderProducts,
+  })
+  const customersQuery = useQuery({
+    queryKey: ["orders", "customers"],
+    queryFn: getOrderCustomers,
+  })
+  const orderDetailQuery = useQuery({
+    queryKey: ["orders", "detail", selectedOrderId],
+    queryFn: () => getOrder(selectedOrderId as string),
+    enabled: Boolean(selectedOrderId),
+  })
+
+  const orders = ordersQuery.data ?? []
+  const products = productsQuery.data ?? []
+  const customers = customersQuery.data ?? []
+  const selectedOrder = orderDetailQuery.data ?? null
+  const error =
+    (ordersQuery.error instanceof Error ? ordersQuery.error.message : null) ??
+    (productsQuery.error instanceof Error ? productsQuery.error.message : null) ??
+    (customersQuery.error instanceof Error ? customersQuery.error.message : null)
+  const detailError =
+    orderDetailQuery.error instanceof Error ? orderDetailQuery.error.message : null
 
   const productNameById = useMemo(
     () => new Map(products.map((product) => [product.id, product.name])),
@@ -44,62 +58,8 @@ export default function OrdersPage() {
     [customers]
   )
 
-  useEffect(() => {
-    let active = true
-
-    async function loadOrders() {
-      setLoading(true)
-      setError(null)
-
-      try {
-        const [orderData, productData, customerData] = await Promise.all([
-          getOrders(),
-          getOrderProducts(),
-          getOrderCustomers(),
-        ])
-
-        if (!active) {
-          return
-        }
-
-        setOrders(orderData)
-        setProducts(productData)
-        setCustomers(customerData)
-      } catch (err) {
-        if (active) {
-          setError(err instanceof Error ? err.message : "Unable to load orders.")
-        }
-      } finally {
-        if (active) {
-          setLoading(false)
-        }
-      }
-    }
-
-    loadOrders()
-
-    return () => {
-      active = false
-    }
-  }, [])
-
   async function selectOrder(order: OrderSummary) {
     setSelectedOrderId(order.id)
-    setSelectedOrder(null)
-    setDetailLoading(true)
-    setDetailError(null)
-
-    try {
-      const detail = await getOrder(order.id)
-
-      setSelectedOrder(detail)
-    } catch (err) {
-      setDetailError(
-        err instanceof Error ? err.message : "Unable to load order detail."
-      )
-    } finally {
-      setDetailLoading(false)
-    }
   }
 
   return (
@@ -130,7 +90,7 @@ export default function OrdersPage() {
               orders={orders}
               customerNameById={customerNameById}
               selectedOrderId={selectedOrderId}
-              loading={loading}
+              loading={ordersQuery.isLoading}
               onSelectOrder={selectOrder}
             />
           </CardContent>
@@ -148,7 +108,7 @@ export default function OrdersPage() {
               order={selectedOrder}
               customerNameById={customerNameById}
               productNameById={productNameById}
-              loading={detailLoading}
+              loading={orderDetailQuery.isLoading}
               error={detailError}
             />
           </CardContent>

@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { useMemo, useState } from "react"
 
 import {
   Card,
@@ -35,9 +36,7 @@ import type {
 type RefundMethod = "cash" | "card" | "other"
 
 export default function ReturnsPage() {
-  const [orders, setOrders] = useState<OrderSummary[]>([])
-  const [products, setProducts] = useState<Product[]>([])
-  const [returns, setReturns] = useState<ReturnSummary[]>([])
+  const queryClient = useQueryClient()
   const [selectedOrderId, setSelectedOrderId] = useState("")
   const [selectedOrder, setSelectedOrder] = useState<OrderDetail | null>(null)
   const [formItems, setFormItems] = useState<ReturnFormItem[]>([])
@@ -51,73 +50,45 @@ export default function ReturnsPage() {
   const [selectedReturn, setSelectedReturn] = useState<ReturnDetail | null>(
     null
   )
-  const [loading, setLoading] = useState(true)
   const [loadingOrder, setLoadingOrder] = useState(false)
   const [loadingReturn, setLoadingReturn] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
   const [detailError, setDetailError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+
+  const ordersQuery = useQuery({ queryKey: ["returns", "orders"], queryFn: getOrders })
+  const productsQuery = useQuery({
+    queryKey: ["returns", "products"],
+    queryFn: getProducts,
+  })
+  const returnsQuery = useQuery({ queryKey: ["returns"], queryFn: getReturns })
+  const orders = ordersQuery.data ?? []
+  const products = productsQuery.data ?? []
+  const returns = returnsQuery.data ?? []
+  const loading = ordersQuery.isLoading || productsQuery.isLoading || returnsQuery.isLoading
+  const error =
+    (ordersQuery.error instanceof Error ? ordersQuery.error.message : null) ??
+    (productsQuery.error instanceof Error ? productsQuery.error.message : null) ??
+    (returnsQuery.error instanceof Error ? returnsQuery.error.message : null)
 
   const productNameById = useMemo(
     () => new Map(products.map((product) => [product.id, product.name])),
     [products]
   )
 
-  useEffect(() => {
-    let active = true
-
-    async function loadInitialData() {
-      setLoading(true)
-      setError(null)
-
-      try {
-        const [orderData, productData, returnData] = await Promise.all([
-          getOrders(),
-          getProducts(),
-          getReturns(),
-        ])
-
-        if (!active) {
-          return
-        }
-
-        setOrders(orderData)
-        setProducts(productData)
-        setReturns(returnData)
-      } catch (err) {
-        if (active) {
-          setError(
-            err instanceof Error ? err.message : "Unable to load returns."
-          )
-        }
-      } finally {
-        if (active) {
-          setLoading(false)
-        }
-      }
-    }
-
-    loadInitialData()
-
-    return () => {
-      active = false
-    }
-  }, [])
-
-  async function refreshReturns() {
-    const returnData = await getReturns()
-    setReturns(returnData)
-    return returnData
-  }
-
   async function loadReturnedQuantities(orderId: string) {
     const relevantReturns = returns.filter(
       (returnSummary) => returnSummary.order_id === orderId
     )
     const details = await Promise.all(
-      relevantReturns.map((returnSummary) => getReturn(returnSummary.id))
+      relevantReturns.map((returnSummary) =>
+        queryClient.fetchQuery({
+          queryKey: ["returns", "detail", returnSummary.id],
+          queryFn: () => getReturn(returnSummary.id),
+          staleTime: 60_000,
+        })
+      )
     )
     const quantityByItemId = new Map<string, number>()
 
@@ -149,7 +120,11 @@ export default function ReturnsPage() {
     setLoadingOrder(true)
 
     try {
-      const order = await getOrder(orderId)
+      const order = await queryClient.fetchQuery({
+        queryKey: ["orders", "detail", orderId],
+        queryFn: () => getOrder(orderId),
+        staleTime: 60_000,
+      })
       setSelectedOrder(order)
       setFormItems(
         order.items.map((item) => ({
@@ -265,8 +240,10 @@ export default function ReturnsPage() {
 
     try {
       const createdReturn = await createReturn(payload)
-      const refreshedReturns = await refreshReturns()
-      const createdReturnDetail = await getReturn(createdReturn.id)
+      const createdReturnDetail = await queryClient.fetchQuery({
+        queryKey: ["returns", "detail", createdReturn.id],
+        queryFn: () => getReturn(createdReturn.id),
+      })
 
       setSelectedOrderId("")
       setSelectedOrder(null)
@@ -283,7 +260,14 @@ export default function ReturnsPage() {
           createdReturn.total_refund_amount
         )}`
       )
-      setReturns(refreshedReturns)
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["returns"] }),
+        queryClient.invalidateQueries({ queryKey: ["returns", "orders"] }),
+        queryClient.invalidateQueries({ queryKey: ["orders"] }),
+        queryClient.invalidateQueries({ queryKey: ["inventory"] }),
+        queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
+        queryClient.invalidateQueries({ queryKey: ["reports"] }),
+      ])
     } catch (err) {
       setFormError(
         err instanceof Error ? err.message : "Return could not be completed."
@@ -300,7 +284,11 @@ export default function ReturnsPage() {
     setDetailError(null)
 
     try {
-      const detail = await getReturn(returnSummary.id)
+      const detail = await queryClient.fetchQuery({
+        queryKey: ["returns", "detail", returnSummary.id],
+        queryFn: () => getReturn(returnSummary.id),
+        staleTime: 60_000,
+      })
       setSelectedReturn(detail)
     } catch (err) {
       setDetailError(

@@ -47,6 +47,10 @@ function movementEndpoint(action: InventoryAction) {
   return "/inventory/adjust"
 }
 
+function isAdjustmentAction(action: InventoryAction) {
+  return !["opening", "receive"].includes(action)
+}
+
 export function formatQuantity(value: string | number) {
   const quantity = Number(value)
 
@@ -95,13 +99,25 @@ export async function createInventoryMovement(
   productId: string,
   form: InventoryFormState
 ) {
+  const quantity = form.quantity
+
   return fetchJson<InventoryMovement>(movementEndpoint(action), {
     method: "POST",
-    body: JSON.stringify({
-      product_id: productId,
-      quantity: form.quantity,
-      reference: form.reference.trim() || null,
-      notes: form.notes.trim() || null,
-    }),
+    body: JSON.stringify(
+      isAdjustmentAction(action)
+        ? {
+            product_id: productId,
+            adjustment_type: action,
+            quantity,
+            reference: form.reference.trim() || null,
+            notes: form.notes.trim() || null,
+          }
+        : {
+            product_id: productId,
+            quantity,
+            reference: form.reference.trim() || null,
+            notes: form.notes.trim() || null,
+          }
+    ),
   })
 }

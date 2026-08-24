@@ -1,6 +1,7 @@
 import type {
   Customer,
   CustomerFormState,
+  CustomerProfile,
 } from "@/app/(app)/customers/_lib/customer-types"
 
 function apiUrl(endpoint: string) {
@@ -37,6 +38,8 @@ export function customerToForm(customer: Customer): CustomerFormState {
     phone: customer.phone ?? "",
     email: customer.email ?? "",
     address: customer.address ?? "",
+    customer_type: customer.customer_type ?? "individual",
+    notes: customer.notes ?? "",
     status: customer.status,
   }
 }
@@ -47,6 +50,8 @@ function customerPayload(form: CustomerFormState) {
     phone: form.phone.trim() || null,
     email: form.email.trim() || null,
     address: form.address.trim() || null,
+    customer_type: form.customer_type,
+    notes: form.notes.trim() || null,
     status: form.status,
   }
 }
@@ -83,4 +88,8 @@ export async function archiveCustomer(customerId: string) {
   return fetchJson<Customer>(`/customers/${customerId}/archive`, {
     method: "PATCH",
   })
+}
+
+export async function getCustomerProfile(customerId: string) {
+  return fetchJson<CustomerProfile>(`/customers/${customerId}/profile`)
 }

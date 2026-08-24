@@ -7,6 +7,9 @@ from app.models.inventory_movement import InventoryMovement
 from app.models.product import Product
 
 
+STOCK_DECREASE_TYPES = {"adjustment_out", "damaged", "lost"}
+
+
 def create_opening_stock(stock, current_user):
     db = SessionLocal()
 
@@ -222,17 +225,37 @@ def adjust_stock(adjustment, current_user):
                 detail="Product not found"
             )
 
-        if adjustment.quantity == 0:
+        if product.status == "archived":
             raise HTTPException(
                 status_code=400,
-                detail="Adjustment quantity cannot be 0"
+                detail="Archived products cannot be adjusted"
             )
+
+        if adjustment.adjustment_type in STOCK_DECREASE_TYPES:
+            current_stock = (
+                db.query(func.sum(InventoryMovement.quantity))
+                .filter(
+                    InventoryMovement.product_id == adjustment.product_id,
+                    InventoryMovement.business_id == current_user.business_id
+                )
+                .scalar()
+            ) or 0
+
+            if current_stock - adjustment.quantity < 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Adjustment cannot reduce stock below 0"
+                )
+
+            signed_quantity = -adjustment.quantity
+        else:
+            signed_quantity = adjustment.quantity
 
         movement = InventoryMovement(
             business_id=current_user.business_id,
             product_id=adjustment.product_id,
-            movement_type="adjustment",
-            quantity=adjustment.quantity,
+            movement_type=adjustment.adjustment_type,
+            quantity=signed_quantity,
             reference=adjustment.reference,
             notes=adjustment.notes,
             created_by=current_user.id

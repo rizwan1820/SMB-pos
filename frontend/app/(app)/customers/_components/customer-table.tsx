@@ -1,6 +1,7 @@
 "use client"
 
-import { Archive, Edit, Loader2 } from "lucide-react"
+import Link from "next/link"
+import { Archive, Edit, Eye, Loader2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import type { Customer } from "@/app/(app)/customers/_lib/customer-types"
@@ -72,6 +73,13 @@ export function CustomerTable({
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-2">
+                      <Link
+                        href={`/customers/${customer.id}`}
+                        className="inline-flex size-7 items-center justify-center rounded-lg border border-border bg-background hover:bg-muted"
+                        aria-label={`View ${customer.name} profile`}
+                      >
+                        <Eye aria-hidden="true" className="size-3.5" />
+                      </Link>
                       <Button
                         size="icon-sm"
                         variant="outline"

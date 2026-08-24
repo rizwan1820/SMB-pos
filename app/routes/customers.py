@@ -43,6 +43,17 @@ def get_customer(
     )
 
 
+@router.get("/customers/{customer_id}/profile")
+def get_customer_profile(
+    customer_id: UUID,
+    current_user=Depends(get_current_user)
+):
+    return customer_service.get_customer_profile(
+        customer_id,
+        current_user
+    )
+
+
 @router.patch("/customers/{customer_id}")
 def update_customer(
     customer_id: UUID,

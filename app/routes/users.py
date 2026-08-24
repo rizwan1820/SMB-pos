@@ -9,8 +9,16 @@ router = APIRouter()
 
 
 @router.post("/users")
-def create_user(user: UserCreate):
-    return user_service.create_user(user)
+def create_user(
+    user: UserCreate,
+    current_user=Depends(get_current_user),
+):
+    return user_service.create_user(user, current_user)
+
+
+@router.get("/users")
+def get_users(current_user=Depends(get_current_user)):
+    return user_service.get_users(current_user)
 
 @router.post("/login")
 def login(user: UserLogin, response: Response):
@@ -40,7 +48,7 @@ def login(user: UserLogin, response: Response):
 
 @router.get("/me")
 def get_me(current_user = Depends(get_current_user)):
-    return current_user
+    return user_service.current_user_response(current_user)
 
 @router.post("/logout")
 def logout(response: Response):

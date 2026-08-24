@@ -83,3 +83,8 @@ def get_returns_report(
         end_date,
         current_user,
     )
+
+
+@router.get("/reports/inventory")
+def get_inventory_report(current_user=Depends(get_current_user)):
+    return report_service.get_inventory_report(current_user)

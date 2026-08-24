@@ -5,13 +5,13 @@ from app.database.connection import SessionLocal
 from app.models.role import Role
 
 
-def create_role(role):
+def create_role(role, business_id):
     db = SessionLocal()
 
     try:
         new_role = Role(
             name=role.name,
-            business_id=role.business_id
+            business_id=business_id
         )
 
         db.add(new_role)

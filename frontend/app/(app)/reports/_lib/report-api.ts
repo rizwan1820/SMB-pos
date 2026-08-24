@@ -2,6 +2,7 @@ import type {
   CustomersReport,
   DashboardReport,
   DateRangeState,
+  InventoryReport,
   MoneyValue,
   ProductsReport,
   ReturnsReport,
@@ -68,6 +69,10 @@ export function getCustomersReport(rangeState: DateRangeState) {
 
 export function getReturnsReport(rangeState: DateRangeState) {
   return fetchJson<ReturnsReport>(`/reports/returns?${reportQuery(rangeState)}`)
+}
+
+export function getInventoryReport() {
+  return fetchJson<InventoryReport>("/reports/inventory")
 }
 
 export function formatMoney(value: MoneyValue) {

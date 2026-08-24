@@ -9,11 +9,18 @@ import {
   Truck,
   ShoppingCart,
   ReceiptText,
+  FileText,
   RotateCcw,
   BarChart3,
+  Settings,
+  Building2,
 } from "lucide-react"
 
-export function AppSidebar() {
+export function AppSidebar({
+  isPlatformAdmin = false,
+}: {
+  isPlatformAdmin?: boolean
+}) {
   return (
     <aside className="flex min-h-screen w-64 flex-col border-r bg-background p-4">
       <div className="mb-8">
@@ -57,6 +64,14 @@ export function AppSidebar() {
         </Link>
 
         <Link
+          href="/invoices"
+          className="flex items-center gap-3 rounded-md px-3 py-2 hover:bg-muted"
+        >
+          <FileText size={18} />
+          Invoices
+        </Link>
+
+        <Link
           href="/returns"
           className="flex items-center gap-3 rounded-md px-3 py-2 hover:bg-muted"
         >
@@ -95,6 +110,32 @@ export function AppSidebar() {
           <Truck size={18} />
           Suppliers
         </Link>
+
+        <Link
+          href="/settings"
+          className="flex items-center gap-3 rounded-md px-3 py-2 hover:bg-muted"
+        >
+          <Settings size={18} />
+          Settings
+        </Link>
+
+        <Link
+          href="/settings/users"
+          className="flex items-center gap-3 rounded-md px-3 py-2 hover:bg-muted"
+        >
+          <Users size={18} />
+          Users
+        </Link>
+
+        {isPlatformAdmin ? (
+          <Link
+            href="/admin/businesses"
+            className="flex items-center gap-3 rounded-md px-3 py-2 hover:bg-muted"
+          >
+            <Building2 size={18} />
+            Businesses
+          </Link>
+        ) : null}
       </nav>
     </aside>
   )

@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
   customerStatusOptions,
+  customerTypeOptions,
   Customer,
   CustomerFormState,
 } from "@/app/(app)/customers/_lib/customer-types"
@@ -106,6 +107,37 @@ export function CustomerFormDialog({
                   value={form.address}
                   onChange={(event) =>
                     onFormChange({ ...form, address: event.target.value })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="customer-type">Customer Type</Label>
+                <select
+                  id="customer-type"
+                  className="h-8 w-full rounded-lg border border-input bg-background px-2.5 text-sm capitalize outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  value={form.customer_type}
+                  onChange={(event) =>
+                    onFormChange({
+                      ...form,
+                      customer_type: event.target.value as CustomerFormState["customer_type"],
+                    })
+                  }
+                >
+                  {customerTypeOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="notes">Notes</Label>
+                <textarea
+                  id="notes"
+                  className="min-h-24 w-full rounded-lg border border-input bg-background px-2.5 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  value={form.notes}
+                  onChange={(event) =>
+                    onFormChange({ ...form, notes: event.target.value })
                   }
                 />
               </div>

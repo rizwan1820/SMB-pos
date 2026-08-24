@@ -17,8 +17,11 @@ type DateRangeFilterProps = {
 
 const rangeLabels: Array<{ value: ReportRange; label: string }> = [
   { value: "today", label: "Today" },
+  { value: "yesterday", label: "Yesterday" },
   { value: "last_7_days", label: "Last 7 Days" },
+  { value: "this_week", label: "This Week" },
   { value: "this_month", label: "This Month" },
+  { value: "this_year", label: "This Year" },
   { value: "custom", label: "Custom" },
 ]
 

@@ -1,9 +1,11 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useQuery } from "@tanstack/react-query"
+import { useMemo, useState } from "react"
 import {
   AlertTriangle,
   Banknote,
+  Boxes,
   ReceiptText,
   RotateCcw,
   TrendingUp,
@@ -21,10 +23,7 @@ import {
   formatMoney,
   getDashboardReport,
 } from "@/app/(app)/reports/_lib/report-api"
-import type {
-  DashboardReport,
-  DateRangeState,
-} from "@/app/(app)/reports/_lib/report-types"
+import type { DateRangeState } from "@/app/(app)/reports/_lib/report-types"
 
 const today = new Date().toISOString().slice(0, 10)
 
@@ -34,51 +33,17 @@ export default function DashboardPage() {
     startDate: today,
     endDate: today,
   })
-  const [report, setReport] = useState<DashboardReport | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    let active = true
-
-    async function loadDashboard() {
-      if (
-        rangeState.range === "custom" &&
-        (!rangeState.startDate || !rangeState.endDate)
-      ) {
-        return
-      }
-
-      try {
-        setLoading(true)
-        setError(null)
-
-        const data = await getDashboardReport(rangeState)
-
-        if (active) {
-          setReport(data)
-        }
-      } catch (err) {
-        if (active) {
-          setError(
-            err instanceof Error
-              ? err.message
-              : "Unable to load dashboard data."
-          )
-        }
-      } finally {
-        if (active) {
-          setLoading(false)
-        }
-      }
-    }
-
-    loadDashboard()
-
-    return () => {
-      active = false
-    }
-  }, [rangeState])
+  const hasValidRange =
+    rangeState.range !== "custom" ||
+    Boolean(rangeState.startDate && rangeState.endDate)
+  const dashboardQuery = useQuery({
+    queryKey: ["dashboard", rangeState],
+    queryFn: () => getDashboardReport(rangeState),
+    enabled: hasValidRange,
+  })
+  const report = dashboardQuery.data ?? null
+  const error =
+    dashboardQuery.error instanceof Error ? dashboardQuery.error.message : null
 
   const metricCards = useMemo(
     () => [
@@ -89,25 +54,31 @@ export default function DashboardPage() {
         icon: Banknote,
       },
       {
-        title: "Order Count",
+        title: "Orders",
         value: report ? String(report.order_count) : "0",
         description: "Completed orders",
         icon: ReceiptText,
       },
       {
-        title: "Total Refunds",
+        title: "Products Sold",
+        value: report ? String(report.products_sold) : "0",
+        description: "Completed order items",
+        icon: Boxes,
+      },
+      {
+        title: "Returns/Refunds",
         value: report ? formatMoney(report.total_refunds) : "$0.00",
         description: "Completed refunds",
         icon: RotateCcw,
       },
       {
-        title: "Net Sales",
-        value: report ? formatMoney(report.net_sales) : "$0.00",
-        description: "Sales less refunds",
+        title: "Average Order Value",
+        value: report ? formatMoney(report.average_order_value) : "$0.00",
+        description: "Sales divided by orders",
         icon: TrendingUp,
       },
       {
-        title: "Low Stock Count",
+        title: "Low Stock",
         value: report ? String(report.low_stock_count) : "0",
         description: "Products needing attention",
         icon: AlertTriangle,
@@ -136,7 +107,7 @@ export default function DashboardPage() {
         </Card>
       ) : null}
 
-      <KpiGrid cards={metricCards} loading={loading} />
+      <KpiGrid cards={metricCards} loading={dashboardQuery.isLoading} />
     </main>
   )
 }

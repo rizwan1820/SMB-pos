@@ -8,7 +8,12 @@ from app.schemas.inventory import (
     StockAdjustmentCreate,
     StockReceiveCreate
 )
-from app.services import inventory_service
+from app.schemas.stock_receipt import (
+    StockReceiptCreate,
+    StockReceiptDetail,
+    StockReceiptListItem,
+)
+from app.services import inventory_service, stock_receipt_service
 
 router = APIRouter()
 
@@ -31,6 +36,36 @@ def receive_stock(
 ):
     return inventory_service.receive_stock(
         stock,
+        current_user
+    )
+
+
+@router.post("/inventory/receipts", response_model=StockReceiptDetail)
+def create_stock_receipt(
+    receipt: StockReceiptCreate,
+    current_user=Depends(get_current_user)
+):
+    return stock_receipt_service.create_stock_receipt(
+        receipt,
+        current_user
+    )
+
+
+@router.get("/inventory/receipts", response_model=list[StockReceiptListItem])
+def get_stock_receipts(current_user=Depends(get_current_user)):
+    return stock_receipt_service.get_stock_receipts(current_user)
+
+
+@router.get(
+    "/inventory/receipts/{receipt_id}",
+    response_model=StockReceiptDetail
+)
+def get_stock_receipt(
+    receipt_id: UUID,
+    current_user=Depends(get_current_user)
+):
+    return stock_receipt_service.get_stock_receipt(
+        receipt_id,
         current_user
     )
 

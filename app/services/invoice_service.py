@@ -1,7 +1,10 @@
 from io import BytesIO
+from datetime import date, datetime, time, timedelta, timezone
 from uuid import UUID
+from xml.sax.saxutils import escape
 
 from fastapi import HTTPException
+from sqlalchemy import String, and_, cast, or_
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet
@@ -24,12 +27,107 @@ from app.models.payment import Payment
 from app.models.product import Product
 
 
-def money_text(value):
-    return f"${float(value):,.2f}"
+def money_text(value, currency="USD"):
+    return f"{currency} {float(value):,.2f}"
 
 
 def date_text(value):
     return value.strftime("%b %d, %Y")
+
+
+def _day_start(value: date):
+    return datetime.combine(value, time.min, tzinfo=timezone.utc)
+
+
+def get_invoices(
+    current_user,
+    search: str | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
+):
+    if start_date and end_date and start_date > end_date:
+        raise HTTPException(
+            status_code=400,
+            detail="start_date must be before or equal to end_date",
+        )
+
+    db = SessionLocal()
+
+    try:
+        query = (
+            db.query(
+                Invoice.id,
+                Invoice.invoice_number,
+                Invoice.invoice_date,
+                Invoice.order_id,
+                Customer.name.label("customer_name"),
+                Order.total_amount,
+                Payment.method.label("payment_method"),
+                Payment.status.label("payment_status"),
+            )
+            .join(
+                Order,
+                and_(
+                    Order.id == Invoice.order_id,
+                    Order.business_id == current_user.business_id,
+                ),
+            )
+            .outerjoin(
+                Customer,
+                and_(
+                    Customer.id == Order.customer_id,
+                    Customer.business_id == current_user.business_id,
+                ),
+            )
+            .outerjoin(
+                Payment,
+                and_(
+                    Payment.order_id == Order.id,
+                    Payment.business_id == current_user.business_id,
+                ),
+            )
+            .filter(Invoice.business_id == current_user.business_id)
+        )
+
+        if start_date:
+            query = query.filter(Invoice.invoice_date >= _day_start(start_date))
+
+        if end_date:
+            query = query.filter(
+                Invoice.invoice_date < _day_start(end_date + timedelta(days=1))
+            )
+
+        if search:
+            search_value = search.strip()
+
+            if search_value:
+                pattern = f"%{search_value}%"
+                query = query.filter(
+                    or_(
+                        Invoice.invoice_number.ilike(pattern),
+                        cast(Invoice.order_id, String).ilike(pattern),
+                        Customer.name.ilike(pattern),
+                    )
+                )
+
+        invoices = query.order_by(Invoice.invoice_date.desc()).all()
+
+        return [
+            {
+                "id": invoice.id,
+                "invoice_number": invoice.invoice_number,
+                "invoice_date": invoice.invoice_date,
+                "order_id": invoice.order_id,
+                "customer_name": invoice.customer_name,
+                "total_amount": invoice.total_amount,
+                "payment_method": invoice.payment_method,
+                "payment_status": invoice.payment_status,
+            }
+            for invoice in invoices
+        ]
+
+    finally:
+        db.close()
 
 
 def get_invoice(invoice_id: UUID, current_user):
@@ -143,6 +241,16 @@ def get_invoice(invoice_id: UUID, current_user):
             },
             "business": {
                 "name": business.name,
+                "logo_url": business.logo_url,
+                "address": business.address,
+                "phone": business.phone,
+                "email": business.email,
+                "currency": business.currency,
+                "tax_label": business.tax_label,
+                "invoice_business_name": business.invoice_business_name,
+                "invoice_business_details": (
+                    business.invoice_business_details
+                ),
             },
             "customer": (
                 {
@@ -208,8 +316,35 @@ def generate_invoice_pdf(invoice_id: UUID, current_user):
     customer = invoice_data["customer"]
     payment = invoice_data["payment"]
     totals = invoice_data["totals"]
+    currency = business.get("currency") or "USD"
+    tax_label = business.get("tax_label") or "Tax"
+    business_name = (
+        business.get("invoice_business_name")
+        or business.get("name")
+        or "Business"
+    )
 
-    story.append(Paragraph(business["name"], styles["Title"]))
+    story.append(Paragraph(escape(business_name), styles["Title"]))
+
+    business_lines = []
+
+    for field in ["address", "phone", "email"]:
+        if business.get(field):
+            business_lines.append(escape(business[field]))
+
+    if business.get("invoice_business_details"):
+        detail_lines = [
+            escape(line.strip())
+            for line in business["invoice_business_details"].splitlines()
+            if line.strip()
+        ]
+        business_lines.extend(detail_lines)
+
+    if business_lines:
+        story.append(
+            Paragraph("<br/>".join(business_lines), styles["BodyText"])
+        )
+
     story.append(Paragraph("Invoice", styles["Heading2"]))
     story.append(Spacer(1, 0.15 * inch))
 
@@ -246,7 +381,7 @@ def generate_invoice_pdf(invoice_id: UUID, current_user):
     story.append(Spacer(1, 0.25 * inch))
 
     item_rows = [
-        ["Item", "Qty", "Unit Price", "Discount", "Tax", "Line Total"],
+        ["Item", "Qty", "Unit Price", "Discount", tax_label, "Line Total"],
     ]
 
     for item in invoice_data["items"]:
@@ -254,10 +389,10 @@ def generate_invoice_pdf(invoice_id: UUID, current_user):
             [
                 item["product_name"],
                 str(item["quantity"]),
-                money_text(item["unit_price"]),
-                money_text(item["discount_amount"]),
-                money_text(item["tax_amount"]),
-                money_text(item["line_total"]),
+                money_text(item["unit_price"], currency),
+                money_text(item["discount_amount"], currency),
+                money_text(item["tax_amount"], currency),
+                money_text(item["line_total"], currency),
             ]
         )
 
@@ -291,10 +426,13 @@ def generate_invoice_pdf(invoice_id: UUID, current_user):
 
     totals_table = Table(
         [
-            ["Subtotal", money_text(totals["subtotal"])],
-            ["Discount Total", money_text(totals["discount_amount"])],
-            ["Tax Total", money_text(totals["tax_amount"])],
-            ["Final Total", money_text(totals["total_amount"])],
+            ["Subtotal", money_text(totals["subtotal"], currency)],
+            [
+                "Discount Total",
+                money_text(totals["discount_amount"], currency),
+            ],
+            [f"{tax_label} Total", money_text(totals["tax_amount"], currency)],
+            ["Final Total", money_text(totals["total_amount"], currency)],
         ],
         colWidths=[4.8 * inch, 1.7 * inch],
     )
@@ -313,7 +451,7 @@ def generate_invoice_pdf(invoice_id: UUID, current_user):
 
     payment_rows = [
         ["Payment Method", payment["method"].title()],
-        ["Payment Amount", money_text(payment["amount"])],
+        ["Payment Amount", money_text(payment["amount"], currency)],
         ["Payment Status", payment["status"].title()],
     ]
 

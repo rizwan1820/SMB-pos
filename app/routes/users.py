@@ -1,9 +1,14 @@
 
+import os
+
 from app.auth.dependencies import get_current_user
 from app.schemas.user import UserCreate
 from app.schemas.user import UserLogin
 from app.services import user_service
 from fastapi import APIRouter, Depends, Response
+
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
+IS_PRODUCTION = ENVIRONMENT == "production"
 
 router = APIRouter()
 
@@ -28,8 +33,8 @@ def login(user: UserLogin, response: Response):
         key="access_token",
         value=session.access_token,
         httponly=True,
-        secure=False,
-        samesite="lax",
+        secure=IS_PRODUCTION,
+        samesite="none" if IS_PRODUCTION else "lax",
         max_age=session.expires_in,
     )
 
@@ -37,8 +42,8 @@ def login(user: UserLogin, response: Response):
         key="refresh_token",
         value=session.refresh_token,
         httponly=True,
-        secure=False,
-        samesite="lax",
+        secure=IS_PRODUCTION,
+        samesite="none" if IS_PRODUCTION else "lax",
         max_age=60 * 60 * 24 * 30,
     )
 
@@ -54,14 +59,16 @@ def get_me(current_user = Depends(get_current_user)):
 def logout(response: Response):
     response.delete_cookie(
         key="access_token",
+        secure=IS_PRODUCTION,
         httponly=True,
-        samesite="lax",
+        samesite="none" if IS_PRODUCTION else "lax",
     )
 
     response.delete_cookie(
         key="refresh_token",
+        secure=IS_PRODUCTION,
         httponly=True,
-        samesite="lax",
+        samesite="none" if IS_PRODUCTION else "lax",
     )
 
     return {"message": "Logged out successfully"}
